@@ -5,7 +5,6 @@ const { say } = require('cfonts')
 const packageJson = require('../package.json')
 const { Extendscript } = require('../dist')
 const commander = require('commander')
-const { exec } = require('child-process-promise')
 const program = new commander.Command()
 const path = require('path')
 const fs = require('fs')
@@ -17,24 +16,17 @@ const isCI = process.env.CI || false
 
 const ORA_SPINNER = {
   interval: 80,
-  frames: [
-    '   ⠋',
-    '   ⠙',
-    '   ⠚',
-    '   ⠞',
-    '   ⠖',
-    '   ⠦',
-    '   ⠴',
-    '   ⠲',
-    '   ⠳',
-    '   ⠓'
-  ]
+  frames: ['⠋', '⠙', '⠚', '⠞', '⠖', '⠦', '⠴', '⠲', '⠳', '⠓']
+}
+
+const cmdTmp = {
+  win32: `"{app}" -r "{script}"`,
+  darwin: `osascript -e 'tell application id "com.adobe.{app}" to activate do javascript file "{script}"'`
 }
 
 inquirer.registerPrompt('file-tree-selection', inquirerFileTreeSelection)
 
 const cwd = path.resolve('./')
-console.log(cwd)
 const envfile = path.join(cwd, '.env')
 
 const apps = {
@@ -54,6 +46,15 @@ const apps = {
     versions: ['2015.3', '2018', '2019']
   }
 }
+
+let aliasesToApp = {}
+
+Object.keys(apps).forEach(app => {
+  aliasesToApp[app] = app
+  apps[app].aliases.forEach(al => (aliasesToApp[al] = app))
+})
+
+greeting()
 
 if (process.argv.length > 2) {
   program
@@ -117,38 +118,39 @@ if (process.argv.length > 2) {
       'The Adobe Application the script is intended for. i.e. InDesign [targetApp]'
     )
     .action(async (app, source, opts) => {
-      if (!fs.existsSync(envfile)) return
+      if (!fs.existsSync(envfile) && process.platform === 'win32') return
 
       let spinner = ora({
         text: `Compiling ${source} ... (This may take a while)`,
         spinner: ORA_SPINNER
       }).start()
 
+      require('dotenv').config()
+
+      const runningApp = aliasesToApp[app]
+
+      if (!runningApp) return
+
       const extendscript = new Extendscript()
 
-      const adobeTarget = String(opts.target).toLowerCase()
-      if (
-        adobeTarget &&
-        (adobeTarget.indexOf('indesign') >= 0 ||
-          adobeTarget.indexOf('photoshop') >= 0 ||
-          adobeTarget.indexOf('illustrator') >= 0 ||
-          adobeTarget.indexOf('aftereffects') >= 0)
-      ) {
-        extendscript.Prepend('#target ' + opts.target + '\n')
-      }
+      extendscript.Prepend('#target ' + runningApp + '\n')
 
       try {
         let scriptfile = await extendscript.Parse(source)
-        require('dotenv').config()
 
-        let photoshop = process.env.Photoshop
-        if (!photoshop) return
+        let cmd = cmdTmp[process.platform].replace('{script}', scriptfile)
 
-        const cmd = `"${photoshop}" -r "${scriptfile}"`
+        if (process.platform === 'win32') {
+          let appLoc = process.env[runningApp]
+          if (!appLoc) return
+          cmd = cmd.replace('{app}', appLoc)
+        } else if (process.platform === 'darwin') {
+          cmd = cmd.replace('{app}', runningApp)
+        } else return
 
         shell.exec(cmd, () => {
           spinner.stopAndPersist({
-            text: `${chalk.black.bgGreen(` ✔ Done `)}`
+            text: chalk.black.bgGreen(` ✔ Done `)
           })
 
           fs.unlinkSync(scriptfile)
