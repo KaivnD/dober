@@ -1,0 +1,44 @@
+{
+  "name": "dober",
+  "version": "0.0.1",
+  "bin": {
+    "dober": "bin/dober.js"
+  },
+  "main": "dist",
+  "author": "KaivnD",
+  "license": "MIT",
+  "scripts": {
+    "prebuild": "rimraf dist",
+    "build": "tsc -p tsconfig.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KaivnD/dober.git"
+  },
+  "bugs": {
+    "url": "https://github.com/KaivnD/dober/issues"
+  },
+  "homepage": "https://github.com/KaivnD/dober#readme",
+  "dependencies": {
+    "@babel/core": "^7.4.4",
+    "@babel/preset-env": "^7.4.4",
+    "babel-plugin-transform-es3-member-expression-literals": "^6.22.0",
+    "babel-plugin-transform-es3-property-literals": "^6.22.0",
+    "babel-plugin-transform-es5-property-mutators": "^6.24.1",
+    "babelify": "^10.0.0",
+    "browserify": "^16.2.3",
+    "commander": "^2.15.1",
+    "core-js": "3",
+    "extendscript.prototypes": "0.1.1",
+    "prependify": "^1.3.0"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^2.12.0",
+    "@typescript-eslint/parser": "^2.12.0",
+    "@types/browserify": "^12.0.36",
+    "eslint": "^6.7.2",
+    "prettier": "^1.19.1",
+    "rimraf": "^3.0.0",
+    "typescript": "^3.7.3"
+  }
+}
