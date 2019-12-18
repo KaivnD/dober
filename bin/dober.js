@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 const program = require('commander')
-const packageJson = require('./package.json')
+const packageJson = require('../package.json')
 const { Extendscript } = require('../dist')
 
 program
@@ -46,4 +46,4 @@ if (targetEngine !== 'undefined') {
   }
 }
 
-extendscript.save(program.script, program.output)
+extendscript.Parse(program.script, program.output)

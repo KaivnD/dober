@@ -25,7 +25,7 @@ export class Extendscript {
   /**
    * Parser
    */
-  public Parser(fileIn: string, fileOut: string) {
+  public Parse(fileIn: string, fileOut: string) {
     const b = browserify({
       entries: [fileIn],
       transform: [
