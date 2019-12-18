@@ -54,7 +54,23 @@ Object.keys(apps).forEach(app => {
   apps[app].aliases.forEach(al => (aliasesToApp[al] = app))
 })
 
-greeting()
+require('dotenv').config()
+
+const cols = process.stdout.columns
+let text = ''
+
+if (cols > 85) text = 'Dober.js'
+else if (cols > 60) text = 'Dober.js'
+else text = false
+console.log()
+if (text && !isCI) {
+  say(text, {
+    colors: ['yellow'],
+    font: 'block',
+    space: false
+  })
+} else console.log(chalk.yellow.bold('\n  Dober.js'))
+console.log()
 
 if (process.argv.length > 2) {
   program
@@ -117,49 +133,10 @@ if (process.argv.length > 2) {
       '-t, --target [targetApp]',
       'The Adobe Application the script is intended for. i.e. InDesign [targetApp]'
     )
-    .action(async (app, source, opts) => {
+    .action((app, source, opts) => {
       if (!fs.existsSync(envfile) && process.platform === 'win32') return
 
-      let spinner = ora({
-        text: `Compiling ${source} ... (This may take a while)`,
-        spinner: ORA_SPINNER
-      }).start()
-
-      require('dotenv').config()
-
-      const runningApp = aliasesToApp[app]
-
-      if (!runningApp) return
-
-      const extendscript = new Extendscript()
-
-      extendscript.Prepend('#target ' + runningApp + '\n')
-
-      try {
-        let scriptfile = await extendscript.Parse(source)
-
-        let cmd = cmdTmp[process.platform].replace('{script}', scriptfile)
-
-        if (process.platform === 'win32') {
-          let appLoc = process.env[runningApp]
-          if (!appLoc) return
-          cmd = cmd.replace('{app}', appLoc)
-        } else if (process.platform === 'darwin') {
-          cmd = cmd.replace('{app}', runningApp)
-        } else return
-
-        shell.exec(cmd, () => {
-          spinner.stopAndPersist({
-            text: chalk.black.bgGreen(` ✔ Done `)
-          })
-
-          fs.unlinkSync(scriptfile)
-        })
-      } catch (e) {
-        spinner.stopAndPersist({
-          text: `${chalk.white.bgRed(e.message)}`
-        })
-      }
+      compileAndRun(app, source)
     })
 
   program.parse(process.argv)
@@ -167,7 +144,6 @@ if (process.argv.length > 2) {
 }
 
 ;(async () => {
-  greeting()
   let answers = await inquirer.prompt([
     {
       type: 'list',
@@ -181,22 +157,48 @@ if (process.argv.length > 2) {
       message: `What should the name of the script file be?`
     }
   ])
-  console.log(answers)
+
+  compileAndRun(answers.app, answers.file)
 })()
 
-function greeting() {
-  const cols = process.stdout.columns
-  let text = ''
+async function compileAndRun(app, source) {
+  const spinner = ora({
+    text: `Compiling ${source} ... (This may take a while)`,
+    spinner: ORA_SPINNER
+  }).start()
 
-  if (cols > 85) text = 'Dober.js'
-  else if (cols > 60) text = 'Dober.js'
-  else text = false
+  const runningApp = aliasesToApp[app]
 
-  if (text && !isCI) {
-    say(text, {
-      colors: ['yellow'],
-      font: 'block',
-      space: false
+  if (!runningApp) return
+
+  const extendscript = new Extendscript()
+
+  // extendscript.Prepend('#target ' + runningApp + '\n')
+
+  try {
+    let scriptfile = await extendscript.Parse(source)
+
+    let cmd = cmdTmp[process.platform].replace('{script}', scriptfile)
+
+    if (process.platform === 'win32') {
+      let appLoc = process.env[runningApp]
+      if (!appLoc) return
+      cmd = cmd.replace('{app}', appLoc)
+    } else if (process.platform === 'darwin') {
+      cmd = cmd.replace('{app}', runningApp)
+    } else return
+
+    shell.exec(cmd, () => {
+      spinner.stopAndPersist({
+        text: chalk.black.bgGreen(` ✔ Done `)
+      })
+
+      fs.unlinkSync(scriptfile)
     })
-  } else console.log(chalk.yellow.bold('\n  Dober.js'))
+  } catch (e) {
+    spinner.stopAndPersist({
+      text: chalk.white.bgRed(` ${e.message} `)
+    })
+  }
+  console.log()
 }
