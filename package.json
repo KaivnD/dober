@@ -1,9 +1,10 @@
 {
   "name": "dober",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "bin": {
     "dober": "bin/dober.js"
   },
+  "files": ["dist"],
   "main": "dist",
   "author": "KaivnD",
   "license": "MIT",
