@@ -6,6 +6,11 @@ import path from 'path'
 import fs from 'fs'
 import os from 'os'
 
+export interface ExParseoptions {
+  debug?: boolean,
+  save?: string
+}
+
 export class Extendscript {
   public plugins: any[];
 
@@ -29,7 +34,7 @@ export class Extendscript {
   /**
    * Parser
    */
-  public Parse(fileIn: string): Promise<string> {
+  public Parse(fileIn: string, ops: ExParseoptions): Promise<string> {
     return new Promise((resolve, reject) => {
       if (!fs.existsSync(fileIn)) {
         reject(new Error('Input file is not found'))
@@ -55,24 +60,30 @@ export class Extendscript {
         plugin: this.plugins
       });
 
-      const tmpfile = path.join(os.tmpdir(), rds.generate({
+      let scriptfile = path.join(os.tmpdir(), rds.generate({
         length: 12,
         charset: 'alphanumeric'
-      }) + '.jsx')
+      }) + '.js')
 
-      const fws = fs.createWriteStream(tmpfile)
+      if(ops.save) scriptfile = ops.save
+
+      const fws = fs.createWriteStream(scriptfile)
 
       fws.on('close', () => {
-        const res = UglifyJS.minify(fs.readFileSync(tmpfile, {encoding: 'utf-8'}), {
+        if (ops.debug) {
+          resolve(scriptfile)
+          return
+        }
+        const res = UglifyJS.minify(fs.readFileSync(scriptfile, {encoding: 'utf-8'}), {
           mangle: {
             eval: true
           }
         })
         if (res.error) reject(res.error)
         else {
-          fs.unlinkSync(tmpfile)
-          fs.writeFileSync(tmpfile, res.code, {encoding: 'utf-8'})
-          resolve(tmpfile)
+          fs.unlinkSync(scriptfile)
+          fs.writeFileSync(scriptfile, res.code, {encoding: 'utf-8'})
+          resolve(scriptfile)
         }
       })
 

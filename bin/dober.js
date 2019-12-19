@@ -11,6 +11,7 @@ const fs = require('fs')
 const shell = require('shelljs')
 const chalk = require('chalk')
 const ora = require('ora')
+const rds = require('randomstring')
 
 const isCI = process.env.CI || false
 
@@ -77,14 +78,14 @@ if (process.argv.length > 2) {
     .version(packageJson.version)
     .command('config')
     .alias('c')
-    .description('config local software location')
+    .description('config local adobe app location')
     .action(() => {
       if (fs.existsSync(envfile) || process.platform !== 'win32') return
       ;(async () => {
         let selectApps = await inquirer.prompt({
           type: 'checkbox',
           name: 'apps',
-          message: 'app location to be set',
+          message: 'Apps to be set',
           choices: Object.keys(apps)
         })
 
@@ -104,13 +105,13 @@ if (process.argv.length > 2) {
             {
               type: 'list',
               name: 'app',
-              message: `Which app are you scripting for?`,
+              message: `Which app are you setting for?`,
               choices: Object.keys(hostApps)
             },
             {
               type: 'input',
               name: 'path',
-              message: 'Where is this app exe'
+              message: 'Where is this app exe?'
             }
           ])
 
@@ -129,14 +130,35 @@ if (process.argv.length > 2) {
   program
     .version(packageJson.version)
     .command('run <app> <source>')
-    .option(
-      '-t, --target [targetApp]',
-      'The Adobe Application the script is intended for. i.e. InDesign [targetApp]'
-    )
+    .option('-d, --debug', 'If debug minify is disabled.')
+    .option('-s, --save [save]', 'Save the output where ever you want.')
     .action((app, source, opts) => {
       if (!fs.existsSync(envfile) && process.platform === 'win32') return
 
-      compileAndRun(app, source)
+      if (opts.save) {
+        try {
+          const info = fs.statSync(opts.save)
+          if (info.isDirectory) {
+            opts.save = path.join(
+              opts.save,
+              rds.generate({
+                length: 12,
+                charset: 'alphanumeric'
+              }) + '.js'
+            )
+          } else if (info.isFile) {
+            if (!fs.existsSync(path.dirname(opts.save))) return
+          }
+
+          if (!path.isAbsolute(opts.save)) {
+            opts.save = path.resolve(opts.save)
+          }
+        } catch {
+          return
+        }
+      }
+
+      compileAndRun(app, source, opts.debug, opts.save)
     })
 
   program.parse(process.argv)
@@ -154,14 +176,14 @@ if (process.argv.length > 2) {
     {
       type: 'file-tree-selection',
       name: 'file',
-      message: `What should the name of the script file be?`
+      message: `Where is your script file be?`
     }
   ])
 
   compileAndRun(answers.app, answers.file)
 })()
 
-async function compileAndRun(app, source) {
+async function compileAndRun(app, source, debug = false, save = false) {
   const spinner = ora({
     text: `Compiling ${source} ... (This may take a while)`,
     spinner: ORA_SPINNER
@@ -176,7 +198,10 @@ async function compileAndRun(app, source) {
   // extendscript.Prepend('#target ' + runningApp + '\n')
 
   try {
-    let scriptfile = await extendscript.Parse(source)
+    let scriptfile = await extendscript.Parse(source, {
+      debug: debug,
+      save: save
+    })
 
     let cmd = cmdTmp[process.platform].replace('{script}', scriptfile)
 
@@ -193,9 +218,15 @@ async function compileAndRun(app, source) {
         text: chalk.black.bgGreen(` ✔ Done `)
       })
 
+      if (debug || save) {
+        console.log(scriptfile)
+        return
+      }
+
       fs.unlinkSync(scriptfile)
     })
   } catch (e) {
+    console.log()
     spinner.stopAndPersist({
       text: chalk.white.bgRed(` ${e.message} `)
     })
