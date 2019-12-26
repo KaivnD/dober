@@ -77,6 +77,9 @@ export class Extendscript {
         const res = UglifyJS.minify(fs.readFileSync(scriptfile, {encoding: 'utf-8'}), {
           mangle: {
             eval: true
+          },
+          output: {
+            ascii_only: true
           }
         })
         if (res.error) reject(res.error)
