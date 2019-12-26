@@ -12,6 +12,7 @@ const shell = require('shelljs')
 const chalk = require('chalk')
 const ora = require('ora')
 const rds = require('randomstring')
+const ini = require('ini')
 
 const isCI = process.env.CI || false
 
@@ -135,7 +136,6 @@ if (process.argv.length > 2) {
     .option('-a, --arguments [argument]', 'argument parsing into this script')
     .action((app, source, opts) => {
       if (!fs.existsSync(envfile) && process.platform === 'win32') return
-      console.log(opts.output)
       if (opts.output) {
         try {
           const info = fs.statSync(opts.output)
@@ -164,10 +164,19 @@ if (process.argv.length > 2) {
         dober: packageJson.version
       }
 
-      if (opts.arguments) {
-        let param = new URLSearchParams(opts.arguments)
-        for (let key of param.keys()) {
-          argv[key] = param.get(key)
+      let configFile = path.join(cwd, '.config')
+
+      if (fs.existsSync(configFile)) {
+        let config = ini.decode(
+          fs.readFileSync(configFile, { encoding: 'utf8' })
+        )
+        Object.assign(argv, config)
+      } else {
+        if (opts.arguments) {
+          let param = new URLSearchParams(opts.arguments)
+          for (let key of param.keys()) {
+            argv[key] = param.get(key)
+          }
         }
       }
       compileAndRun(app, source, opts.debug, opts.output, argv)
@@ -208,12 +217,38 @@ async function compileAndRun(app, source, debug = false, save = false, argv) {
   const extendscript = new Extendscript()
 
   // extendscript.Prepend('#target ' + runningApp + '\n')
+  const setArg = (key, val) => `$.argv["${key}"]=${val};`
+  let args = ['$.argv = {};\n']
 
   for (let key in argv) {
-    extendscript.Prepend(`$.argv["${key}"]="${argv[key]}";\n`)
+    if (key === 'default') continue
+    const val = argv[key]
+    switch (typeof val) {
+      case 'number':
+      case 'boolean': {
+        args.push(setArg(key, val))
+        break
+      }
+      case 'string': {
+        args.push(setArg(key, `"${val}"`))
+        break
+      }
+      case 'object': {
+        args.push(
+          setArg(
+            key,
+            JSON.stringify(val, null, '\t').replace(/"(\w+)"\s*:/g, '$1:')
+          )
+        )
+        break
+      }
+      default: {
+        argvs.push(setArg(key, null))
+        break
+      }
+    }
   }
-
-  extendscript.Prepend('$.argv = {};')
+  extendscript.Prepend(args.join('\n'))
 
   try {
     let scriptfile = await extendscript.Parse(source, {
