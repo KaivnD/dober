@@ -131,34 +131,46 @@ if (process.argv.length > 2) {
     .version(packageJson.version)
     .command('run <app> <source>')
     .option('-d, --debug', 'If debug minify is disabled.')
-    .option('-s, --save [save]', 'Save the output where ever you want.')
+    .option('-o, --output [output]', 'Save the output where ever you want.')
+    .option('-a, --arguments [argument]', 'argument parsing into this script')
     .action((app, source, opts) => {
       if (!fs.existsSync(envfile) && process.platform === 'win32') return
-
-      if (opts.save) {
+      console.log(opts.output)
+      if (opts.output) {
         try {
-          const info = fs.statSync(opts.save)
+          const info = fs.statSync(opts.output)
           if (info.isDirectory) {
-            opts.save = path.join(
-              opts.save,
+            opts.output = path.join(
+              opts.output,
               rds.generate({
                 length: 12,
                 charset: 'alphanumeric'
               }) + '.js'
             )
           } else if (info.isFile) {
-            if (!fs.existsSync(path.dirname(opts.save))) return
+            if (!fs.existsSync(path.dirname(opts.output))) return
           }
 
-          if (!path.isAbsolute(opts.save)) {
-            opts.save = path.resolve(opts.save)
+          if (!path.isAbsolute(opts.output)) {
+            opts.output = path.resolve(opts.output)
           }
         } catch {
           return
         }
       }
 
-      compileAndRun(app, source, opts.debug, opts.save)
+      let argv = {
+        cwd: cwd,
+        dober: packageJson.version
+      }
+
+      if (opts.arguments) {
+        let param = new URLSearchParams(opts.arguments)
+        for (let key of param.keys()) {
+          argv[key] = param.get(key)
+        }
+      }
+      compileAndRun(app, source, opts.debug, opts.output, argv)
     })
 
   program.parse(process.argv)
@@ -183,7 +195,7 @@ if (process.argv.length > 2) {
   compileAndRun(answers.app, answers.file)
 })()
 
-async function compileAndRun(app, source, debug = false, save = false) {
+async function compileAndRun(app, source, debug = false, save = false, argv) {
   const spinner = ora({
     text: `Compiling ${source} ... (This may take a while)`,
     spinner: ORA_SPINNER
@@ -196,6 +208,12 @@ async function compileAndRun(app, source, debug = false, save = false) {
   const extendscript = new Extendscript()
 
   // extendscript.Prepend('#target ' + runningApp + '\n')
+
+  for (let key in argv) {
+    extendscript.Prepend(`$.argv["${key}"]="${argv[key]}";\n`)
+  }
+
+  extendscript.Prepend('$.argv = {};')
 
   try {
     let scriptfile = await extendscript.Parse(source, {
@@ -223,7 +241,9 @@ async function compileAndRun(app, source, debug = false, save = false) {
         return
       }
 
-      fs.unlinkSync(scriptfile)
+      setTimeout(() => {
+        fs.unlinkSync(scriptfile)
+      }, 300)
     })
   } catch (e) {
     console.log()
