@@ -134,6 +134,10 @@ if (process.argv.length > 2) {
     .option('-d, --debug', 'If debug minify is disabled.')
     .option('-o, --output [output]', 'Save the output where ever you want.')
     .option('-a, --arguments [argument]', 'argument parsing into this script')
+    .option(
+      '-c, --config-ini [config]',
+      'argument as config ini file parsing into this script'
+    )
     .action((app, source, opts) => {
       if (!fs.existsSync(envfile) && process.platform === 'win32') return
       if (opts.output) {
@@ -165,6 +169,8 @@ if (process.argv.length > 2) {
       }
 
       let configFile = path.join(cwd, '.config')
+
+      if (opts.config) configFile = opts.config
 
       if (fs.existsSync(configFile)) {
         let config = ini.decode(
